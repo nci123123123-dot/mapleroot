@@ -115,7 +115,10 @@ async def get_character(name: str):
                              params={"character_name": name},
                              headers=NEXON_HEADERS)
         if r.status_code != 200:
-            raise HTTPException(status_code=r.status_code, detail="캐릭터를 찾을 수 없습니다")
+            err = r.json() if r.headers.get("content-type","").startswith("application/json") else {}
+            detail = err.get("error", {}).get("message") or f"Nexon API {r.status_code}"
+            logger.warning(f"ocid lookup failed: {r.status_code} {err}")
+            raise HTTPException(status_code=400, detail=detail)
         ocid = r.json().get("ocid")
 
         # 2. 기본 정보 조회
