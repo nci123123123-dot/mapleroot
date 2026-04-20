@@ -8,12 +8,15 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# CPU-only torch (install first to set numpy version)
+# Pin numpy<2 first (torch 2.2 was compiled against numpy 1.x)
+RUN pip install --no-cache-dir "numpy<2"
+
+# CPU-only torch
 RUN pip install --no-cache-dir \
     torch==2.2.0+cpu torchvision==0.17.0+cpu \
     --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Remaining dependencies (numpy resolved by torch)
+# Remaining dependencies
 COPY requirements_server.txt .
 RUN pip install --no-cache-dir -r requirements_server.txt
 
