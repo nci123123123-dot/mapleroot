@@ -1,0 +1,28 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "*.py",
+      "*.joblib",
+      "*.spec",
+      "*.bat",
+      "*.ps1",
+      "Dockerfile",
+      "requirements_server.txt",
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      "sol_roi.json",
+      "sol_templates.json",
+      "sol_samples.json",
+      "sol_icon.png"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

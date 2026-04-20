@@ -1,0 +1,10 @@
+dist/
+build/
+node_modules/
+*.py
+*.joblib
+*.spec
+*.bat
+*.ps1
+Dockerfile
+requirements_server.txt

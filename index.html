@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>메이플 루트 트래커</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+    <!-- ── 헤더 ── -->
+    <header class="app-header">
+        <div class="logo">🍁 메이플 루트 트래커</div>
+        <div style="display:flex;align-items:center;gap:12px">
+            <div class="session-badge">
+                <span class="session-label">세션 시간</span>
+                <span id="session-time" class="session-time">00:00:00</span>
+            </div>
+            <!-- 비로그인 상태 -->
+            <div id="auth-buttons" style="display:flex;gap:6px">
+                <button id="btn-header-login"  class="btn btn-sm">로그인</button>
+                <button id="btn-header-signup" class="btn btn-sm btn-primary">회원가입</button>
+            </div>
+            <!-- 로그인 상태 -->
+            <div class="user-badge" id="user-badge" style="display:none">
+                <span class="user-nick" id="user-nick"></span>
+                <button id="btn-logout" class="btn btn-sm">로그아웃</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── 메인: 위(캡처) / 아래(기록) ── -->
+    <main class="app-main">
+
+        <!-- ▲ 위쪽: 캡처 영역 -->
+        <div class="top-row">
+
+            <!-- 비디오 미리보기 -->
+            <div class="capture-wrap">
+                <div id="capture-area" class="capture-area">
+                    <video id="screen-video" autoplay muted playsinline></video>
+                    <canvas id="sel-canvas"></canvas>
+                    <div id="placeholder" class="capture-placeholder">
+                        <div class="placeholder-icon">🪟</div>
+                        <p><strong>"창" 탭</strong>에서<br>메이플 <strong>솔 에르다 창</strong>을<br>선택하세요</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽 컨트롤 패널 -->
+            <div class="control-col">
+
+                <!-- Step 1 -->
+                <div class="step-box">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <div class="step-title">솔 에르다 창 선택</div>
+                        <div class="row-flex gap-6" style="margin-top:6px">
+                            <button id="btn-capture" class="btn btn-primary">화면 선택</button>
+                            <button id="btn-stop-capture" class="btn btn-danger" disabled>중지</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="step-box" id="step2-box" style="opacity:.4;pointer-events:none">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <div class="step-title">위치 지정</div>
+                        <div class="step-desc">버튼 클릭 후 해당 숫자 위치를 클릭<br>
+                        <span style="color:var(--gold);font-size:10px">💡 메이플 창을 최대한 크게 설정할수록 인식률이 높아집니다</span></div>
+                        <div class="row-flex gap-6" style="margin-top:4px">
+                            <button id="btn-sel-sol"  class="btn btn-rg btn-rg-sol"  disabled>🔷 조각 슬롯</button>
+                            <button id="btn-sel-meso" class="btn btn-rg btn-rg-meso" disabled>💰 메소 클릭</button>
+                        </div>
+                        <div style="margin-top:5px;display:flex;flex-direction:column;gap:3px">
+                            <div class="row-flex gap-4" style="align-items:center">
+                                <span style="font-size:10px;color:var(--gold);width:16px">💰</span>
+                                <span style="font-size:10px;color:var(--muted)">104×12 고정</span>
+                            </div>
+                            <div class="row-flex gap-4" style="align-items:center">
+                                <span style="font-size:10px;color:var(--blue);width:16px">🔷</span>
+                                <span style="font-size:10px;color:var(--muted)">80×12 고정</span>
+                            </div>
+                        </div>
+                        <div id="sel-status" class="sel-status"></div>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="step-box" id="step3-box" style="opacity:.4;pointer-events:none">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <div class="step-title">모니터링</div>
+                        <div class="row-flex gap-6" style="margin-top:6px">
+                            <label class="label-inline">주기
+                                <select id="interval-sel">
+                                    <option value="1000">1초</option>
+                                    <option value="2000" selected>2초</option>
+                                    <option value="3000">3초</option>
+                                    <option value="5000">5초</option>
+                                </select>
+                            </label>
+                            <button id="btn-monitor" class="btn btn-success" disabled>▶ 시작</button>
+                            <button id="btn-force-ocr" class="btn btn-sm" disabled>지금</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCR 미리보기 -->
+                <div class="ocr-previews">
+                    <div class="ocr-preview-item">
+                        <div class="preview-label label-meso">💰 메소 — 원본</div>
+                        <canvas id="ocr-meso-raw-canvas" class="ocr-canvas"></canvas>
+                        <div class="preview-label label-meso" style="margin-top:3px">전처리 후</div>
+                        <canvas id="ocr-meso-canvas" class="ocr-canvas"></canvas>
+                        <div class="corr-row">
+                            <div class="parsed-val" id="parsed-meso">-</div>
+                            <button id="btn-corr-meso" class="btn-corr-edit" title="수정">✏️</button>
+                        </div>
+                        <div id="corr-wrap-meso" class="corr-input-wrap" style="display:none">
+                            <input id="corr-input-meso" class="corr-input" type="number" placeholder="올바른 값 입력">
+                            <button id="btn-corr-ok-meso"     class="btn-corr-ok">✓</button>
+                            <button id="btn-corr-cancel-meso" class="btn-corr-cancel">✗</button>
+                        </div>
+                        <pre class="ocr-raw-text" id="raw-meso-text"></pre>
+                        <!-- 메소 템플릿 학습 현황 -->
+                        <div class="tmpl-status-row">
+                            <span class="tmpl-status-label">템플릿</span>
+                            <div id="tmpl-meso-dots" class="tmpl-dots"></div>
+                            <button id="btn-tmpl-open-meso" class="btn-tmpl-setup">⚙ 설정</button>
+                        </div>
+                    </div>
+                    <div class="ocr-preview-item">
+                        <div class="preview-label label-sol">🔷 조각 — 원본</div>
+                        <canvas id="ocr-sol-raw-canvas" class="ocr-canvas"></canvas>
+                        <div class="preview-label label-sol" style="margin-top:3px">전처리 후</div>
+                        <canvas id="ocr-sol-canvas" class="ocr-canvas"></canvas>
+                        <div class="corr-row">
+                            <div class="parsed-val" id="parsed-sol">-</div>
+                            <button id="btn-corr-sol" class="btn-corr-edit" title="수정">✏️</button>
+                        </div>
+                        <div id="corr-wrap-sol" class="corr-input-wrap" style="display:none">
+                            <input id="corr-input-sol" class="corr-input" type="number" placeholder="올바른 값 입력">
+                            <button id="btn-corr-ok-sol"     class="btn-corr-ok">✓</button>
+                            <button id="btn-corr-cancel-sol" class="btn-corr-cancel">✗</button>
+                        </div>
+                        <pre class="ocr-raw-text" id="raw-sol-text"></pre>
+                        <!-- 템플릿 학습 현황 -->
+                        <div class="tmpl-status-row">
+                            <span class="tmpl-status-label">템플릿</span>
+                            <div id="tmpl-dots" class="tmpl-dots"></div>
+                            <button id="btn-tmpl-open" class="btn-tmpl-setup">⚙ 설정</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ▼ 아래쪽: 통계 + 기록 -->
+        <div class="bottom-row">
+
+            <!-- 통계 카드 -->
+            <div class="stats-row">
+                <div class="stat-card card-meso">
+                    <div class="stat-title">현재 메소 잔액</div>
+                    <div id="cur-meso" class="stat-value">-</div>
+                </div>
+                <div class="stat-card card-sol">
+                    <div class="stat-title">현재 솔 에르다 조각</div>
+                    <div id="cur-sol" class="stat-value">-</div>
+                </div>
+                <div class="stat-card card-mgain">
+                    <div class="stat-title">획득 메소</div>
+                    <div id="stat-meso" class="stat-value">0</div>
+                </div>
+                <div class="stat-card card-sgain">
+                    <div class="stat-title">획득 조각</div>
+                    <div id="stat-sol" class="stat-value">0</div>
+                </div>
+            </div>
+
+            <!-- 기록 테이블 -->
+            <div class="log-panel">
+                <div class="log-header">
+                    <span class="panel-title">획득 기록</span>
+                    <div class="row-flex gap-6">
+                        <button id="btn-clear-log" class="btn btn-sm btn-danger-sm">초기화</button>
+                        <button id="btn-save-session" class="btn btn-sm btn-save" disabled>💾 저장</button>
+                        <button id="btn-history" class="btn btn-sm btn-history">📋 기록</button>
+                    </div>
+                </div>
+                <div class="log-wrap">
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th class="th-left">시간</th>
+                                <th>메소 변화</th>
+                                <th>조각 변화</th>
+                                <th>메소 잔액</th>
+                                <th>누적 메소</th>
+                                <th>누적 조각</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-body"></tbody>
+                    </table>
+                    <div id="log-empty" class="log-empty">아직 기록이 없습니다</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ── 인증 모달 ── -->
+    <div id="auth-overlay" class="auth-overlay" style="display:none">
+        <div class="auth-backdrop" id="auth-backdrop"></div>
+        <div class="auth-card">
+            <button id="btn-auth-close" class="auth-close-btn">✕</button>
+            <div class="auth-logo">🍁 메이플 루트 트래커</div>
+
+            <!-- 로그인 -->
+            <div id="auth-login" class="auth-section">
+                <h2 class="auth-title">로그인</h2>
+                <input id="login-email" class="auth-input" type="email"    placeholder="이메일">
+                <input id="login-pw"    class="auth-input" type="password" placeholder="비밀번호">
+                <button id="btn-login" class="btn btn-primary auth-btn">로그인</button>
+                <div id="login-err" class="auth-err"></div>
+                <div class="auth-switch">계정이 없으신가요? <a id="goto-signup" class="auth-link">회원가입</a></div>
+            </div>
+
+            <!-- 회원가입 -->
+            <div id="auth-signup" class="auth-section" style="display:none">
+                <h2 class="auth-title">회원가입</h2>
+
+                <!-- Step 1: 이메일/비밀번호 -->
+                <div id="signup-step1">
+                    <input id="signup-email" class="auth-input" type="email"    placeholder="이메일">
+                    <input id="signup-pw"    class="auth-input" type="password" placeholder="비밀번호 (6자 이상)">
+                    <button id="btn-signup-next" class="btn btn-primary auth-btn">다음 →</button>
+                </div>
+
+                <!-- Step 2: 닉네임 입력 -->
+                <div id="signup-step2" style="display:none">
+                    <input id="nick-input" class="auth-input" placeholder="메이플 캐릭터 닉네임">
+                    <button id="btn-nick-confirm" class="btn btn-success auth-btn">✅ 가입 완료</button>
+                </div>
+
+                <div id="signup-err" class="auth-err"></div>
+                <div class="auth-switch">이미 계정이 있으신가요? <a id="goto-login" class="auth-link">로그인</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── 기록 이력 모달 ── -->
+    <div id="history-modal" class="history-modal" style="display:none">
+        <div class="history-backdrop" id="history-backdrop"></div>
+        <div class="history-box">
+            <div class="history-header">
+                <span>📋 파밍 기록 이력</span>
+                <button id="btn-history-close" class="btn btn-sm">✕</button>
+            </div>
+            <div id="history-content" class="history-content">
+                <div class="history-loading">불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── OCR 확대 팝업 ── -->
+    <div id="ocr-zoom-modal" class="ocr-zoom-modal" style="display:none">
+        <div class="ocr-zoom-backdrop" id="ocr-zoom-backdrop"></div>
+        <div class="ocr-zoom-box">
+            <div class="ocr-zoom-label" id="ocr-zoom-label"></div>
+            <canvas id="ocr-zoom-canvas" class="ocr-zoom-canvas"></canvas>
+            <div class="ocr-zoom-hint">클릭하거나 ESC로 닫기</div>
+        </div>
+    </div>
+
+    <!-- ── 템플릿 설정 위자드 ── -->
+    <div id="tmpl-modal" class="tmpl-modal" style="display:none">
+        <div class="tmpl-backdrop" id="tmpl-backdrop"></div>
+        <div class="tmpl-box">
+            <div class="tmpl-box-header">
+                <span class="tmpl-box-title">🎯 숫자 템플릿 설정</span>
+                <button id="btn-tmpl-close" class="btn btn-sm">✕</button>
+            </div>
+            <!-- 탭 -->
+            <div class="tmpl-tabs">
+                <button class="tmpl-tab active" data-tab="sol">🔷 솔 조각</button>
+                <button class="tmpl-tab" data-tab="meso">💰 메소</button>
+            </div>
+            <!-- 솔 섹션 -->
+            <div id="tmpl-section-sol" class="tmpl-section">
+                <div class="tmpl-desc">
+                    솔 에르다 조각 슬롯을 보이게 하고,<br>
+                    <strong>아이템 개수</strong>를 입력 후 캡처 학습을 눌러주세요.<br>
+                    0~9 완성 시 Tesseract 없이 즉시 인식됩니다.
+                </div>
+                <div class="tmpl-progress-bar">
+                    <div class="tmpl-progress-fill" id="tmpl-sol-progress" style="width:0%"></div>
+                </div>
+                <div id="tmpl-digit-grid-sol" class="tmpl-digit-grid"></div>
+            </div>
+            <!-- 메소 섹션 -->
+            <div id="tmpl-section-meso" class="tmpl-section" style="display:none">
+                <div class="tmpl-desc">
+                    메소가 보이는 인벤토리 화면을 띄우고,<br>
+                    <strong>정확한 메소 금액(숫자)</strong>을 입력 후 캡처 학습을 눌러주세요.<br>
+                    0~9 + 억 + 만 완성 시 Tesseract 없이 즉시 인식됩니다.
+                </div>
+                <div class="tmpl-progress-bar">
+                    <div class="tmpl-progress-fill" id="tmpl-meso-progress" style="width:0%"></div>
+                </div>
+                <div id="tmpl-digit-grid-meso" class="tmpl-digit-grid"></div>
+            </div>
+            <!-- 공통 입력 -->
+            <div class="tmpl-input-row">
+                <input id="tmpl-count-input" class="tmpl-input" type="number" min="0" placeholder="현재 값 입력">
+                <button id="btn-tmpl-capture" class="btn btn-success">📸 캡처 학습</button>
+            </div>
+            <div id="tmpl-msg" class="tmpl-msg"></div>
+            <button id="btn-tmpl-reset" class="btn btn-sm btn-danger-sm" style="margin-top:10px">🗑 현재 탭 초기화</button>
+        </div>
+    </div>
+
+    <!-- ── 상태 바 ── -->
+    <footer class="status-bar">
+        <span id="status-msg">OCR 엔진 초기화 중...</span>
+        <span id="ocr-state" class="ocr-state"></span>
+    </footer>
+
+</div>
+<!-- 라이브러리 -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="sol-cnn-weights.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
