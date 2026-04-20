@@ -2,7 +2,7 @@
 
 // ── OCR 서버 설정 ─────────────────────────────────────────────────────────────
 // 배포 후 실제 서버 URL로 변경하세요
-const OCR_SERVER_URL = 'https://your-ocr-server.railway.app';
+const OCR_SERVER_URL = 'https://mapleroot-production.up.railway.app';
 
 // ── 상태 ────────────────────────────────────────────────────────────────────
 const S = {
@@ -18,7 +18,7 @@ const S = {
 
     // 박스 크기 (px 절대값) — +/- 버튼으로 4px씩 조절
     // 메소: 가로로 긴 텍스트 / 솔: 아이템 슬롯 전체(정사각형)
-    boxPx: { meso: { w: 104, h: 12 }, sol: { w: 80, h: 12 } },  // 두 값 모두 고정
+    boxPx: { meso: { w: 104, h: 12 }, sol: { w: 12, h: 12 } },  // 두 값 모두 고정
 
     // ImageCapture 인스턴스 (고화질 정지 프레임용)
     imageCapture: null,
@@ -1585,7 +1585,7 @@ function syncCanvas() {
 }
 
 // ── 박스 위치 저장/복원 (localStorage) ──────────────────────────────────────
-const PRESET_KEY = 'maple-regions-v7';  // v7: 솔 80x12, 메소 104x12
+const PRESET_KEY = 'maple-regions-v8';  // v8: 솔 12x12, 메소 104x12
 
 function saveRegions() {
     try {
@@ -1603,7 +1603,7 @@ function loadRegions() {
         const { regions, boxPx } = JSON.parse(raw);
         if (regions) S.regions = regions;
         if (boxPx)   S.boxPx   = boxPx;
-        S.boxPx.sol  = { w: 80,  h: 12 };  // 솔 80×12 고정
+        S.boxPx.sol  = { w: 12,  h: 12 };  // 솔 12×12 고정
         S.boxPx.meso = { w: 104, h: 12 };  // 메소 104×12 고정
     } catch {}
 }
@@ -2328,15 +2328,18 @@ function startSessionIfNeeded() {
 
 // ── 10분 누적 기록 ────────────────────────────────────────────────────────────
 function record10min() {
-    if (S.prevMeso === null) return;
-    const gainMeso = S.lastRecordedMeso !== null ? Math.max(0, S.prevMeso - S.lastRecordedMeso) : 0;
-    const gainSol  = S.lastRecordedSol  !== null ? Math.max(0, (S.prevSol ?? 0) - S.lastRecordedSol) : 0;
+    // 메소 or 솔 중 하나라도 있으면 기록 진행
+    if (S.prevMeso === null && S.prevSol === null) return;
+    const gainMeso = (S.prevMeso !== null && S.lastRecordedMeso !== null)
+        ? Math.max(0, S.prevMeso - S.lastRecordedMeso) : 0;
+    const gainSol  = S.lastRecordedSol !== null
+        ? Math.max(0, (S.prevSol ?? 0) - S.lastRecordedSol) : 0;
     if (gainMeso > 0 || gainSol > 0) {
         addEntry(gainMeso, gainSol, S.prevMeso);
     }
     // 변화 없어도 checkpoint 갱신
-    S.lastRecordedMeso = S.prevMeso;
-    S.lastRecordedSol  = S.prevSol ?? 0;
+    if (S.prevMeso !== null) S.lastRecordedMeso = S.prevMeso;
+    S.lastRecordedSol = S.prevSol ?? 0;
 }
 
 function resetIdleTimer() {
@@ -3233,4 +3236,114 @@ async function init() {
 }
 
 init();
+
+// ── 캐릭터 조회 ───────────────────────────────────────────────────────────────
+(function initCharSearch() {
+    const input   = document.getElementById('char-input');
+    const btn     = document.getElementById('btn-char-search');
+    const msg     = document.getElementById('char-search-msg');
+    const section = document.getElementById('char-section');
+    const searchSection = document.getElementById('char-search-section');
+
+    async function search(name) {
+        if (!name) return;
+        msg.textContent = '조회 중...';
+        btn.disabled = true;
+        try {
+            const res  = await fetch(`${OCR_SERVER_URL}/maple/character?name=${encodeURIComponent(name)}`);
+            if (!res.ok) { msg.textContent = '캐릭터를 찾을 수 없습니다'; return; }
+            const data = await res.json();
+            showCharacter(data);
+            msg.textContent = '';
+            localStorage.setItem('maple-char', JSON.stringify(data));
+        } catch {
+            msg.textContent = '서버 연결 실패';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function showCharacter(data) {
+        document.getElementById('char-img').src    = data.image || '';
+        document.getElementById('char-name').textContent   = data.name;
+        document.getElementById('char-detail').textContent =
+            `Lv.${data.level}  ${data.class}  (${data.world})`;
+        document.getElementById('char-guild').textContent  =
+            data.guild ? `<${data.guild}>` : '';
+        section.style.display = '';
+    }
+
+    btn.addEventListener('click', () => search(input.value.trim()));
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') search(input.value.trim()); });
+
+    // 저장된 캐릭터 복원
+    const saved = localStorage.getItem('maple-char');
+    if (saved) { try { showCharacter(JSON.parse(saved)); } catch {} }
+})();
+
+// ── Python OCR WebSocket 연동 ─────────────────────────────────────────────────
+(function initPythonOCR() {
+    const dot    = document.getElementById('python-ocr-dot');
+    const msg    = document.getElementById('python-ocr-msg');
+    const valBox = document.getElementById('python-ocr-val');
+
+    function setOcrStatus(connected) {
+        if (!dot || !msg) return;
+        if (connected) {
+            dot.textContent = '●';
+            dot.style.color = 'var(--green)';
+            msg.textContent = '연결됨 — sol_ocr.py 실행 중';
+            msg.style.color = 'var(--green)';
+        } else {
+            dot.textContent = '○';
+            dot.style.color = 'var(--muted)';
+            msg.textContent = '연결 안됨 — sol_ocr.py 실행 필요';
+            msg.style.color = 'var(--muted)';
+            if (valBox) valBox.style.display = 'none';
+        }
+    }
+
+    function connect() {
+        const ws = new WebSocket('ws://localhost:8765');
+        ws.onopen  = () => { console.log('[Sol OCR] 연결됨'); setOcrStatus(true); };
+        ws.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.sol != null) feedSolFromPython(data.sol);
+            } catch {}
+        };
+        ws.onclose = () => { setOcrStatus(false); setTimeout(connect, 3000); };
+        ws.onerror = () => ws.close();
+    }
+    connect();
+})();
+
+function feedSolFromPython(val) {
+    const display = document.getElementById('python-sol-display');
+    const valBox  = document.getElementById('python-ocr-val');
+    if (display) display.textContent = val;
+    if (valBox)  valBox.style.display = '';
+
+    D.curSol.textContent = val;
+
+    const confSol     = tryConfirm('sol', val);
+    const hasBaseline = S.prevMeso !== null || S.prevSol !== null;
+
+    if (confSol !== null) {
+        if (!hasBaseline) {
+            // 첫 기준값 확정
+            S.lastRecordedSol = confSol;
+            setStatus('기준값 확정 (Python OCR)', 'active');
+        } else {
+            const gainSol = S.prevSol !== null ? confSol - S.prevSol : 0;
+            if (gainSol !== 0) {
+                // 솔 변화 감지 → 세션 시작 + idle 리셋
+                startSessionIfNeeded();
+                resetIdleTimer();
+            }
+            setStatus('인식 완료', S.isMonitoring ? 'active' : '');
+        }
+        S.prevSol = confSol;
+    }
+}
 

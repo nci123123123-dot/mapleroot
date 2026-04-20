@@ -6,6 +6,8 @@ import numpy as np
 import asyncio
 import time
 import logging
+import httpx
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,3 +101,37 @@ async def ocr(file: UploadFile = File(...), client_id: str = "default"):
 @app.get("/health")
 def health():
     return {"status": "ok", "ocr": "ready"}
+
+# ── 넥슨 MapleStory API 프록시 ────────────────────────────────────────────────
+NEXON_API_KEY = os.environ.get("NEXON_API_KEY", "test_039b0fd04debe744e926dbaa13d8866514dc2c6bff8473413ba4b8671ecf8dfdefe8d04e6d233bd35cf2fabdeb93fb0d")
+NEXON_BASE    = "https://open.api.nexon.com/maplestory/v1"
+NEXON_HEADERS = {"x-nxopen-api-key": NEXON_API_KEY}
+
+@app.get("/maple/character")
+async def get_character(name: str):
+    async with httpx.AsyncClient(timeout=10) as client:
+        # 1. ocid 조회
+        r = await client.get(f"{NEXON_BASE}/character/ocid",
+                             params={"character_name": name},
+                             headers=NEXON_HEADERS)
+        if r.status_code != 200:
+            raise HTTPException(status_code=r.status_code, detail="캐릭터를 찾을 수 없습니다")
+        ocid = r.json().get("ocid")
+
+        # 2. 기본 정보 조회
+        r2 = await client.get(f"{NEXON_BASE}/character/basic",
+                              params={"ocid": ocid},
+                              headers=NEXON_HEADERS)
+        if r2.status_code != 200:
+            raise HTTPException(status_code=r2.status_code, detail="캐릭터 정보 조회 실패")
+        data = r2.json()
+
+        return {
+            "name":    data.get("character_name"),
+            "world":   data.get("world_name"),
+            "class":   data.get("character_class"),
+            "level":   data.get("character_level"),
+            "image":   data.get("character_image"),
+            "guild":   data.get("character_guild_name", ""),
+            "gender":  data.get("character_gender"),
+        }
