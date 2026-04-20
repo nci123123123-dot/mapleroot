@@ -111,7 +111,7 @@ NEXON_HEADERS = {"x-nxopen-api-key": NEXON_API_KEY}
 async def get_character(name: str):
     async with httpx.AsyncClient(timeout=10) as client:
         # 1. ocid 조회
-        r = await client.get(f"{NEXON_BASE}/character/ocid",
+        r = await client.get(f"{NEXON_BASE}/id",
                              params={"character_name": name},
                              headers=NEXON_HEADERS)
         if r.status_code != 200:
